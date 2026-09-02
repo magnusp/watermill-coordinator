@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package coordinator;
+
+option go_package = "github.com/magnusp/watermill-coordinator/proto;coordinatorpb";
+option java_multiple_files = true;
+option java_package = "com.hypergov.watermill.coordinator.proto";
+option java_outer_classname = "CoordinatorProto";
+
+service CoordinatorService {
+  // Publish publishes an event to a topic idempotently based on message_id
+  rpc Publish(PublishRequest) returns (PublishResponse);
+
+  // Subscribe bi-directionally streams events and client acknowledgments
+  // Client first sends a SubscribeRequest (start subscription), and then sends AckRequest messages
+  // as it successfully processes each event.
+  rpc Subscribe(stream SubscribeClientMessage) returns (stream EventMessage);
+
+  // Health check
+  rpc CheckHealth(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message PublishRequest {
+  string topic = 1;
+  string message_id = 2;
+  bytes payload = 3;
+  map<string, string> metadata = 4;
+}
+
+message PublishResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    PUBLISHED = 1;
+    ALREADY_EXISTS = 2; // Idempotent duplicate
+  }
+  Status status = 1;
+  string message_id = 2;
+  string topic = 3;
+  string timestamp = 4;
+  map<string, string> metadata = 5;
+}
+
+message SubscribeClientMessage {
+  oneof action {
+    SubscribeRequest start = 1;
+    AckRequest ack = 2;
+    NackRequest nack = 3;
+  }
+}
+
+message SubscribeRequest {
+  string topic = 1;
+  string consumer_group = 2;
+}
+
+message AckRequest {
+  string message_id = 1;
+}
+
+message NackRequest {
+  string message_id = 1;
+  string reason = 2;
+}
+
+message EventMessage {
+  string message_id = 1;
+  string topic = 2;
+  bytes payload = 3;
+  map<string, string> metadata = 4;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+}

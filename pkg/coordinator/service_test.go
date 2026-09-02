@@ -1,0 +1,628 @@
+package coordinator
+
+import (
+	"context"
+	"database/sql"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ThreeDotsLabs/watermill"
+	pb "github.com/magnusp/watermill-coordinator/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
+	_ "modernc.org/sqlite"
+)
+
+const bufSize = 1024 * 1024
+
+func setupTestGRPC(t *testing.T) (*sql.DB, pb.CoordinatorServiceClient, func()) {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", "file:memtest_pkg?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+
+	wmLogger := watermill.NewStdLogger(false, false)
+	svc, err := NewService(db, ServiceOptions{
+		WriteTimeout: 2 * time.Second,
+		Logger:       wmLogger,
+	})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	svc.Register(srv)
+
+	go func() {
+		if err := srv.Serve(lis); err != nil && err != grpc.ErrServerStopped {
+			t.Logf("test server err: %v", err)
+		}
+	}()
+
+	dialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	conn, err := grpc.NewClient("passthrough://bufnet",
+		grpc.WithContextDialer(dialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("failed to dial bufnet: %v", err)
+	}
+
+	client := pb.NewCoordinatorServiceClient(conn)
+
+	cleanup := func() {
+		conn.Close()
+		srv.GracefulStop()
+		svc.Close()
+		db.Close()
+	}
+
+	return db, client, cleanup
+}
+
+func TestGRPC_CheckHealth(t *testing.T) {
+	_, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resp, err := client.CheckHealth(ctx, &pb.HealthCheckRequest{})
+	if err != nil {
+		t.Fatalf("health check failed: %v", err)
+	}
+
+	if resp.Status != pb.HealthCheckResponse_SERVING {
+		t.Errorf("expected status SERVING, got %v", resp.Status)
+	}
+}
+
+func TestGRPC_Publish_Success_And_Dedup(t *testing.T) {
+	db, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req := &pb.PublishRequest{
+		Topic:     "orders_topic",
+		MessageId: "order-msg-101",
+		Payload:   []byte(`{"order_id": 101, "total": 49.99}`),
+		Metadata: map[string]string{
+			"X-Source": "spring-modulith",
+		},
+	}
+
+	resp, err := client.Publish(ctx, req)
+	if err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	if resp.Status != pb.PublishResponse_PUBLISHED {
+		t.Errorf("expected PUBLISHED status, got %v", resp.Status)
+	}
+	if resp.MessageId != "order-msg-101" {
+		t.Errorf("expected message_id order-msg-101, got %s", resp.MessageId)
+	}
+	if resp.Topic != "orders_topic" {
+		t.Errorf("expected topic orders_topic, got %s", resp.Topic)
+	}
+
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM watermill_orders_topic WHERE uuid = 'order-msg-101'").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query db: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 record, got %d", count)
+	}
+
+	dupResp, err := client.Publish(ctx, req)
+	if err != nil {
+		t.Fatalf("duplicate publish failed unexpectedly: %v", err)
+	}
+
+	if dupResp.Status != pb.PublishResponse_ALREADY_EXISTS {
+		t.Errorf("expected ALREADY_EXISTS status on duplicate, got %v", dupResp.Status)
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM watermill_orders_topic WHERE uuid = 'order-msg-101'").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query db: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected count 1 after duplicate, got %d", count)
+	}
+}
+
+func TestGRPC_Publish_ValidationErrors(t *testing.T) {
+	_, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req := &pb.PublishRequest{
+		Topic:     "test_topic",
+		MessageId: "msg-123",
+		Payload:   nil,
+	}
+
+	_, err := client.Publish(ctx, req)
+	if err == nil {
+		t.Fatal("expected error on empty payload, got nil")
+	}
+
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.InvalidArgument {
+		t.Errorf("expected codes.InvalidArgument, got %v", err)
+	}
+}
+
+func TestGRPC_Publish_TopicValidation(t *testing.T) {
+	_, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	badTopics := []string{
+		"",
+		" ",
+		"topic with spaces",
+		"topic;drop table",
+		"topic'--",
+		"topic!@#$",
+		"a-very-long-topic-name-that-exceeds-sixty-four-characters-limit-which-is-invalid",
+	}
+
+	for _, bad := range badTopics {
+		req := &pb.PublishRequest{
+			Topic:     bad,
+			MessageId: "msg-test",
+			Payload:   []byte("test"),
+		}
+		_, err := client.Publish(ctx, req)
+		if err == nil {
+			t.Fatalf("expected error for invalid topic %q, got nil", bad)
+		}
+		st, ok := status.FromError(err)
+		if !ok || st.Code() != codes.InvalidArgument {
+			t.Errorf("expected InvalidArgument for %q, got %v", bad, err)
+		}
+	}
+}
+
+func TestGRPC_Subscribe_BiDirectional(t *testing.T) {
+	_, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pubReq1 := &pb.PublishRequest{
+		Topic:     "stream_topic",
+		MessageId: "stream-msg-1",
+		Payload:   []byte(`first`),
+	}
+	if _, err := client.Publish(ctx, pubReq1); err != nil {
+		t.Fatalf("publish 1 failed: %v", err)
+	}
+
+	pubReq2 := &pb.PublishRequest{
+		Topic:     "stream_topic",
+		MessageId: "stream-msg-2",
+		Payload:   []byte(`second`),
+	}
+	if _, err := client.Publish(ctx, pubReq2); err != nil {
+		t.Fatalf("publish 2 failed: %v", err)
+	}
+
+	stream, err := client.Subscribe(ctx)
+	if err != nil {
+		t.Fatalf("subscribe stream failed: %v", err)
+	}
+
+	if err := stream.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Start{
+			Start: &pb.SubscribeRequest{
+				Topic:         "stream_topic",
+				ConsumerGroup: "java_service_group",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("send start error: %v", err)
+	}
+
+	receivedIDs := make([]string, 0, 2)
+	for len(receivedIDs) < 2 {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("stream recv error: %v", err)
+		}
+		receivedIDs = append(receivedIDs, msg.MessageId)
+
+		if err := stream.Send(&pb.SubscribeClientMessage{
+			Action: &pb.SubscribeClientMessage_Ack{
+				Ack: &pb.AckRequest{
+					MessageId: msg.MessageId,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("send ack error: %v", err)
+		}
+	}
+
+	if len(receivedIDs) != 2 {
+		t.Fatalf("expected 2 received events, got %d", len(receivedIDs))
+	}
+	if receivedIDs[0] != "stream-msg-1" || receivedIDs[1] != "stream-msg-2" {
+		t.Errorf("unexpected message sequence: %v", receivedIDs)
+	}
+}
+
+func TestResolveDriverAndDSN(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedDriver string
+	}{
+		{"http://127.0.0.1:8080", "libsql"},
+		{"https://example.com/db", "libsql"},
+		{"libsql://mydb.turso.io", "libsql"},
+		{"ws://127.0.0.1:8080", "libsql"},
+		{"wss://mydb.turso.io", "libsql"},
+		{"dev.db", "sqlite"},
+		{"/path/to/my.db", "sqlite"},
+		{"file:memdb1?mode=memory&cache=shared", "sqlite"},
+	}
+
+	for _, tc := range tests {
+		driver, _ := ResolveDriverAndDSN(tc.input)
+		if driver != tc.expectedDriver {
+			t.Errorf("for input %q: expected driver %q, got %q", tc.input, tc.expectedDriver, driver)
+		}
+	}
+}
+
+func TestSafePragmas(t *testing.T) {
+	db, err := InitDB("file:test_pragmas?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	var foreignKeys int
+	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		t.Fatalf("query foreign_keys: %v", err)
+	}
+	if foreignKeys != 1 {
+		t.Errorf("expected foreign_keys=1, got %d", foreignKeys)
+	}
+
+	var busyTimeout int
+	if err := db.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+		t.Fatalf("query busy_timeout: %v", err)
+	}
+	if busyTimeout < 5000 {
+		t.Errorf("expected busy_timeout >= 5000, got %d", busyTimeout)
+	}
+
+	var tempStore int
+	if err := db.QueryRow("PRAGMA temp_store").Scan(&tempStore); err != nil {
+		t.Fatalf("query temp_store: %v", err)
+	}
+	if tempStore != 2 {
+		t.Errorf("expected temp_store=2 (MEMORY), got %d", tempStore)
+	}
+}
+
+func TestAssertSqldPrimaryNode(t *testing.T) {
+	// 1. Primary server mockup
+	primaryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/nodes" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"role": "primary", "index": 42}`))
+	}))
+	defer primaryServer.Close()
+
+	if err := AssertSqldPrimaryNode(primaryServer.URL, ""); err != nil {
+		t.Fatalf("expected primary to pass assertion, got: %v", err)
+	}
+
+	// 2. Replica server mockup
+	replicaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/nodes" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"role": "replica", "primary_url": "http://sqld-primary:5001"}`))
+	}))
+	defer replicaServer.Close()
+
+	err := AssertSqldPrimaryNode(replicaServer.URL, "")
+	if err == nil {
+		t.Fatal("expected replica to fail assertion, got nil")
+	}
+	if !strings.Contains(err.Error(), "coordinator strictly requires a primary writer") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestTursoCloudPrimaryResolution(t *testing.T) {
+	// 1. Mock Turso Platform API
+	mockTursoAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer secret-token" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path != "/v1/organizations/myorg/databases/orders-db/instances" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"instances": [
+				{"name": "ams", "type": "replica", "hostname": "orders-db-ams-myorg.turso.io", "region": "ams"},
+				{"name": "fra", "type": "primary", "hostname": "orders-db-fra-myorg.turso.io", "region": "fra"}
+			]
+		}`))
+	}))
+	defer mockTursoAPI.Close()
+
+	// 2. Test hostname parser
+	dbName, orgSlug, err := parseTursoHostname("orders-db-myorg.turso.io")
+	if err != nil {
+		t.Fatalf("parseTursoHostname failed: %v", err)
+	}
+	if dbName != "orders-db" || orgSlug != "myorg" {
+		t.Errorf("expected orders-db / myorg, got %s / %s", dbName, orgSlug)
+	}
+
+	// 3. Test isTursoCloudHost
+	if !isTursoCloudHost("libsql://orders-db-myorg.turso.io?authToken=xyz") {
+		t.Errorf("expected isTursoCloudHost to be true")
+	}
+	if isTursoCloudHost("http://127.0.0.1:8080") {
+		t.Errorf("expected isTursoCloudHost to be false for local sqld")
+	}
+	if isTursoCloudHost("file:dev.db") {
+		t.Errorf("expected isTursoCloudHost to be false for local sqlite")
+	}
+}
+
+func TestJepsen_DisconnectWithoutAck(t *testing.T) {
+	_, client, cleanup := setupTestGRPC(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	pubReq := &pb.PublishRequest{
+		Topic:     "resilient_topic",
+		MessageId: "msg-crash-test",
+		Payload:   []byte(`important-payload`),
+	}
+	if _, err := client.Publish(ctx, pubReq); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	stream1Ctx, stream1Cancel := context.WithCancel(ctx)
+	stream1, err := client.Subscribe(stream1Ctx)
+	if err != nil {
+		t.Fatalf("subscribe stream1 failed: %v", err)
+	}
+
+	_ = stream1.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Start{
+			Start: &pb.SubscribeRequest{
+				Topic:         "resilient_topic",
+				ConsumerGroup: "resilient_group",
+			},
+		},
+	})
+
+	msg, err := stream1.Recv()
+	if err != nil {
+		t.Fatalf("stream1 recv error: %v", err)
+	}
+	if msg.MessageId != "msg-crash-test" {
+		t.Fatalf("expected msg-crash-test, got %s", msg.MessageId)
+	}
+
+	stream1Cancel()
+
+	time.Sleep(1200 * time.Millisecond)
+
+	stream2Ctx, stream2Cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer stream2Cancel()
+
+	stream2, err := client.Subscribe(stream2Ctx)
+	if err != nil {
+		t.Fatalf("subscribe stream2 failed: %v", err)
+	}
+
+	_ = stream2.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Start{
+			Start: &pb.SubscribeRequest{
+				Topic:         "resilient_topic",
+				ConsumerGroup: "resilient_group",
+			},
+		},
+	})
+
+	redeliveredMsg, err := stream2.Recv()
+	if err != nil {
+		t.Fatalf("stream2 recv error (message was lost after crash!): %v", err)
+	}
+	if redeliveredMsg.MessageId != "msg-crash-test" {
+		t.Fatalf("expected redelivered message msg-crash-test, got %s", redeliveredMsg.MessageId)
+	}
+
+	_ = stream2.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Ack{
+			Ack: &pb.AckRequest{
+				MessageId: redeliveredMsg.MessageId,
+			},
+		},
+	})
+}
+
+// TestBoundedFlowControl verifies that the coordinator pauses yielding from the database
+// when in-flight unacknowledged messages reach MaxInFlight window limit.
+func TestBoundedFlowControl(t *testing.T) {
+	db, err := sql.Open("sqlite", "file:memtest_flow?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	defer db.Close()
+
+	wmLogger := watermill.NewStdLogger(false, false)
+	// Window limit set strictly to 2
+	svc, err := NewService(db, ServiceOptions{
+		WriteTimeout: 2 * time.Second,
+		MaxInFlight:  2,
+		Logger:       wmLogger,
+	})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+	defer svc.Close()
+
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	svc.Register(srv)
+	go srv.Serve(lis)
+	defer srv.GracefulStop()
+
+	dialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	conn, err := grpc.NewClient("passthrough://bufnet",
+		grpc.WithContextDialer(dialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewCoordinatorServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1. Publish 4 messages to the topic
+	for i := 1; i <= 4; i++ {
+		_, err := client.Publish(ctx, &pb.PublishRequest{
+			Topic:     "flow_topic",
+			MessageId: "flow-msg-" + string(rune('0'+i)),
+			Payload:   []byte("test"),
+		})
+		if err != nil {
+			t.Fatalf("publish %d err: %v", i, err)
+		}
+	}
+
+	// 2. Open subscription
+	stream, err := client.Subscribe(ctx)
+	if err != nil {
+		t.Fatalf("subscribe err: %v", err)
+	}
+
+	_ = stream.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Start{
+			Start: &pb.SubscribeRequest{
+				Topic:         "flow_topic",
+				ConsumerGroup: "flow_group",
+			},
+		},
+	})
+
+	// 3. Receive message 1
+	m1, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv 1: %v", err)
+	}
+	if m1.MessageId != "flow-msg-1" {
+		t.Errorf("expected flow-msg-1, got %s", m1.MessageId)
+	}
+
+	// 4. In Watermill SQLite, unacked message prevents next offset until acked (inherent strict order)
+	// Try to read 2nd message before acking 1st -> should block
+	read2Ch := make(chan *pb.EventMessage, 1)
+	go func() {
+		m2, _ := stream.Recv()
+		if m2 != nil {
+			read2Ch <- m2
+		}
+	}()
+
+	select {
+	case m2 := <-read2Ch:
+		t.Fatalf("unexpectedly received 2nd message %s before acking 1st", m2.MessageId)
+	case <-time.After(200 * time.Millisecond):
+		// Expected: blocked until ack
+	}
+
+	// 5. Ack message 1 -> frees subscriber to yield next message
+	_ = stream.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Ack{
+			Ack: &pb.AckRequest{
+				MessageId: m1.MessageId,
+			},
+		},
+	})
+
+	// 6. Now 2nd message unblocks and arrives
+	select {
+	case m2 := <-read2Ch:
+		if m2.MessageId != "flow-msg-2" {
+			t.Errorf("expected flow-msg-2, got %s", m2.MessageId)
+		}
+		// Ack message 2
+		_ = stream.Send(&pb.SubscribeClientMessage{
+			Action: &pb.SubscribeClientMessage_Ack{
+				Ack: &pb.AckRequest{MessageId: m2.MessageId},
+			},
+		})
+	case <-time.After(1 * time.Second):
+		t.Fatalf("timed out waiting for 2nd message after acking 1st")
+	}
+
+	// 7. Receive message 3
+	m3, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv 3: %v", err)
+	}
+	if m3.MessageId != "flow-msg-3" {
+		t.Errorf("expected flow-msg-3, got %s", m3.MessageId)
+	}
+	_ = stream.Send(&pb.SubscribeClientMessage{
+		Action: &pb.SubscribeClientMessage_Ack{
+			Ack: &pb.AckRequest{MessageId: m3.MessageId},
+		},
+	})
+}
+
