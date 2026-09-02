@@ -14,10 +14,16 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 func main() {
 	cfg := coordinator.LoadConfigFromEnv()
 
-	log.Printf("Starting Watermill gRPC Coordinator...")
+	log.Printf("Starting Watermill gRPC Coordinator (version: %s, commit: %s, date: %s)...", Version, Commit, Date)
 	log.Printf("[CONFIG] GRPC_PORT: %s", cfg.GRPCPort)
 	log.Printf("[CONFIG] DATABASE_URL: %s", coordinator.SanitizeDSN(cfg.DatabaseURL))
 
