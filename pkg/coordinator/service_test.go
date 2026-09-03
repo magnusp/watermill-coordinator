@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -650,5 +651,105 @@ func FuzzParseTursoHostname(f *testing.F) {
 				t.Errorf("expected non-empty db and org on success: host=%q", host)
 			}
 		}
+	})
+}
+
+// FuzzResolveDriverAndDSN tests that driver resolution and DSN rewriting never panic on arbitrary input.
+func FuzzResolveDriverAndDSN(f *testing.F) {
+	testcases := []string{
+		"dev.db",
+		"file:test.db?cache=shared",
+		"http://localhost:8080",
+		"https://my-db.turso.io",
+		"libsql://my-db.turso.io",
+		"ws://127.0.0.1:8080",
+		"wss://my-db.turso.io",
+		"",
+		":memory:",
+		"   ",
+		"file:///var/data/foo.db?_pragma=busy_timeout(1000)",
+		"malformed://??&&--",
+		"SELECT * FROM users;",
+	}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, rawURL string) {
+		driver, dsn := ResolveDriverAndDSN(rawURL)
+		if driver != "libsql" && driver != "sqlite" {
+			t.Fatalf("unexpected driver %q", driver)
+		}
+		if dsn == "" {
+			t.Fatalf("empty dsn returned for input %q", rawURL)
+		}
+	})
+}
+
+// FuzzValidateTopic tests that topic validation cleanly rejects invalid and SQL injection inputs.
+func FuzzValidateTopic(f *testing.F) {
+	testcases := []string{
+		"valid_topic",
+		"valid-topic-123",
+		"Topic_Name",
+		"",
+		" ",
+		"topic with spaces",
+		"topic;DROP TABLE users;--",
+		"topic' OR '1'='1",
+		"a/b/c",
+		"topic.with.dots",
+		"very_long_topic_name_that_exceeds_sixty_four_characters_limit_by_a_wide_margin",
+		"!@#$%^&*()",
+	}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, topic string) {
+		err := validateTopic(topic)
+		if err == nil {
+			if len(topic) == 0 || len(topic) > 64 {
+				t.Fatalf("accepted invalid length topic: %q", topic)
+			}
+			for _, r := range topic {
+				isValidChar := (r >= 'a' && r <= 'z') ||
+					(r >= 'A' && r <= 'Z') ||
+					(r >= '0' && r <= '9') ||
+					r == '_' || r == '-'
+				if !isValidChar {
+					t.Fatalf("accepted invalid character in topic: %q", topic)
+				}
+			}
+		}
+	})
+}
+
+// FuzzJSONDecoders tests that decoding arbitrary responses into node info and instances structures never crashes.
+func FuzzJSONDecoders(f *testing.F) {
+	testcases := []string{
+		`{"role":"primary","replication_index":42}`,
+		`{"role":"replica","upstream_url":"http://primary:8080"}`,
+		`{"instances":[{"type":"primary","hostname":"db-primary.turso.io","region":"fra"}]}`,
+		`{"instances":[]}`,
+		`{}`,
+		`null`,
+		`[]`,
+		`{"role":123}`,
+		`{"instances":"not an array"}`,
+		`{"role":"primary","unexpected":true}`,
+		`not json at all`,
+		`{"nested":{"deep":true}}`,
+	}
+	for _, tc := range testcases {
+		f.Add([]byte(tc))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var node sqldNodeInfo
+		_ = json.Unmarshal(data, &node)
+
+		var instances tursoInstancesResponse
+		_ = json.Unmarshal(data, &instances)
 	})
 }

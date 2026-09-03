@@ -36,7 +36,11 @@ jobs:
         run: go test -v ./...
 
       - name: Fuzz test
-        run: go test -v -fuzz=FuzzParseTursoHostname -fuzztime=5s ./pkg/coordinator
+        run: |
+          go test -v -fuzz=FuzzParseTursoHostname -fuzztime=2s ./pkg/coordinator
+          go test -v -fuzz=FuzzResolveDriverAndDSN -fuzztime=2s ./pkg/coordinator
+          go test -v -fuzz=FuzzValidateTopic -fuzztime=2s ./pkg/coordinator
+          go test -v -fuzz=FuzzJSONDecoders -fuzztime=2s ./pkg/coordinator
 
       - name: Vet
         run: go vet ./...
