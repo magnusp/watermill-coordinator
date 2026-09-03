@@ -1,0 +1,6 @@
+FROM scratch
+ARG TARGETOS
+ARG TARGETARCH
+COPY ${TARGETOS}/${TARGETARCH}/coordinator /coordinator
+EXPOSE 50051
+ENTRYPOINT ["/coordinator"]

@@ -49,6 +49,28 @@ signs:
     artifacts: checksum
     output: true
 
+dockers_v2:
+  - id: watermill-coordinator
+    images:
+      - "ghcr.io/magnusp/watermill-coordinator"
+    tags:
+      - "{{ .Version }}"
+      - "v{{ .Version }}"
+      - "latest"
+    dockerfile: Dockerfile
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: "Watermill distributed transaction coordinator with SQLite/sqld"
+      org.opencontainers.image.source: "https://github.com/magnusp/watermill-coordinator"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: "MIT"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+
 changelog:
   sort: asc
   filters:
