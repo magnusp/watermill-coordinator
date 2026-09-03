@@ -626,3 +626,29 @@ func TestBoundedFlowControl(t *testing.T) {
 	})
 }
 
+
+// FuzzParseTursoHostname tests that parseTursoHostname never panics on arbitrary string input.
+func FuzzParseTursoHostname(f *testing.F) {
+	testcases := []string{
+		"my-db-myorg.turso.io",
+		"my-db-myorg.turso.io:443",
+		"singleword",
+		"-leading-dash.turso.io",
+		"trailing-dash-.turso.io",
+		"nested-sub-domains.foo.bar.turso.io",
+		"",
+		"http://foo.bar",
+	}
+	for _, tc := range testcases {
+		f.Add(tc)
+	}
+
+	f.Fuzz(func(t *testing.T, host string) {
+		db, org, err := parseTursoHostname(host)
+		if err == nil {
+			if db == "" || org == "" {
+				t.Errorf("expected non-empty db and org on success: host=%q", host)
+			}
+		}
+	})
+}
