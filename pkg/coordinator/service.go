@@ -259,7 +259,7 @@ func (s *Service) Subscribe(stream pb.CoordinatorService_SubscribeServer) error 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create subscriber: %v", err)
 	}
-	defer subscriber.Close()
+	defer func() { _ = subscriber.Close() }()
 
 	messagesCh, err := subscriber.Subscribe(ctx, topic)
 	if err != nil {

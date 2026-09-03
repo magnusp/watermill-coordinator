@@ -40,6 +40,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest build provenance for release binaries
-        uses: actions/attest-build-provenance@c9085816d97c5e208b5e94b23835f8d29b207559 # v2.2.0
+        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # v2.2.0
         with:
           subject-path: "dist/coordinator* dist/*.tar.gz dist/*.zip"

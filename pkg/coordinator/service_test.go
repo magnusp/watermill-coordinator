@@ -65,10 +65,10 @@ func setupTestGRPC(t *testing.T) (*sql.DB, pb.CoordinatorServiceClient, func()) 
 	client := pb.NewCoordinatorServiceClient(conn)
 
 	cleanup := func() {
-		conn.Close()
+		_ = conn.Close()
 		srv.GracefulStop()
-		svc.Close()
-		db.Close()
+		_ = svc.Close()
+		_ = db.Close()
 	}
 
 	return db, client, cleanup
@@ -306,7 +306,7 @@ func TestSafePragmas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitDB failed: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	var foreignKeys int
 	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
@@ -496,7 +496,7 @@ func TestBoundedFlowControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wmLogger := watermill.NewStdLogger(false, false)
 	// Window limit set strictly to 2
@@ -508,12 +508,12 @@ func TestBoundedFlowControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create service: %v", err)
 	}
-	defer svc.Close()
+	defer func() { _ = svc.Close() }()
 
 	lis := bufconn.Listen(bufSize)
 	srv := grpc.NewServer()
 	svc.Register(srv)
-	go srv.Serve(lis)
+	go func() { _ = srv.Serve(lis) }()
 	defer srv.GracefulStop()
 
 	dialer := func(context.Context, string) (net.Conn, error) {
@@ -527,7 +527,7 @@ func TestBoundedFlowControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := pb.NewCoordinatorServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

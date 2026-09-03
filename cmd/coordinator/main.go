@@ -43,7 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wmLogger := watermill.NewStdLogger(false, false)
 
@@ -54,7 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Coordinator service initialization failed: %v", err)
 	}
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 
 	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {

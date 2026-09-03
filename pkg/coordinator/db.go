@@ -167,7 +167,7 @@ func AssertSqldPrimaryNode(adminURL string, authKey string) error {
 	if err != nil {
 		return fmt.Errorf("query admin endpoint %s: %w", endpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("admin endpoint returned HTTP %d", resp.StatusCode)
@@ -267,7 +267,7 @@ func ResolveTursoPrimaryDSN(dbURL, apiToken, overrideOrg string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("query turso api (%s): %w", apiEndpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("turso api returned HTTP %d for %s", resp.StatusCode, apiEndpoint)
