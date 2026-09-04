@@ -2,13 +2,15 @@ syntax = "proto3";
 
 package coordinator;
 
+import "cloudevents.proto";
+
 option go_package = "github.com/magnusp/watermill-coordinator/proto;coordinatorpb";
 option java_multiple_files = true;
-option java_package = "com.hypergov.watermill.coordinator.proto";
+option java_package = "io.watermill.coordinator.proto";
 option java_outer_classname = "CoordinatorProto";
 
 service CoordinatorService {
-  // Publish publishes an event to a topic idempotently based on message_id
+  // Publish publishes an event to a topic idempotently based on event ID / message_id
   rpc Publish(PublishRequest) returns (PublishResponse);
 
   // Subscribe bi-directionally streams events and client acknowledgments
@@ -22,9 +24,7 @@ service CoordinatorService {
 
 message PublishRequest {
   string topic = 1;
-  string message_id = 2;
-  bytes payload = 3;
-  map<string, string> metadata = 4;
+  io.cloudevents.v1.CloudEvent event = 2;
 }
 
 message PublishResponse {
@@ -37,7 +37,6 @@ message PublishResponse {
   string message_id = 2;
   string topic = 3;
   string timestamp = 4;
-  map<string, string> metadata = 5;
 }
 
 message SubscribeClientMessage {
@@ -63,10 +62,8 @@ message NackRequest {
 }
 
 message EventMessage {
-  string message_id = 1;
-  string topic = 2;
-  bytes payload = 3;
-  map<string, string> metadata = 4;
+  string topic = 1;
+  io.cloudevents.v1.CloudEvent event = 2;
 }
 
 message HealthCheckRequest {}

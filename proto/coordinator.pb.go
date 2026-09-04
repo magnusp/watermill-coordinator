@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v7.36.1
-// source: proto/coordinator.proto
+// source: coordinator.proto
 
 package coordinatorpb
 
@@ -54,11 +54,11 @@ func (x PublishResponse_Status) String() string {
 }
 
 func (PublishResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_coordinator_proto_enumTypes[0].Descriptor()
+	return file_coordinator_proto_enumTypes[0].Descriptor()
 }
 
 func (PublishResponse_Status) Type() protoreflect.EnumType {
-	return &file_proto_coordinator_proto_enumTypes[0]
+	return &file_coordinator_proto_enumTypes[0]
 }
 
 func (x PublishResponse_Status) Number() protoreflect.EnumNumber {
@@ -67,7 +67,7 @@ func (x PublishResponse_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PublishResponse_Status.Descriptor instead.
 func (PublishResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{1, 0}
+	return file_coordinator_proto_rawDescGZIP(), []int{1, 0}
 }
 
 type HealthCheckResponse_ServingStatus int32
@@ -103,11 +103,11 @@ func (x HealthCheckResponse_ServingStatus) String() string {
 }
 
 func (HealthCheckResponse_ServingStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_coordinator_proto_enumTypes[1].Descriptor()
+	return file_coordinator_proto_enumTypes[1].Descriptor()
 }
 
 func (HealthCheckResponse_ServingStatus) Type() protoreflect.EnumType {
-	return &file_proto_coordinator_proto_enumTypes[1]
+	return &file_coordinator_proto_enumTypes[1]
 }
 
 func (x HealthCheckResponse_ServingStatus) Number() protoreflect.EnumNumber {
@@ -116,22 +116,20 @@ func (x HealthCheckResponse_ServingStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HealthCheckResponse_ServingStatus.Descriptor instead.
 func (HealthCheckResponse_ServingStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{8, 0}
+	return file_coordinator_proto_rawDescGZIP(), []int{8, 0}
 }
 
 type PublishRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Topic         string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
-	MessageId     string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	Payload       []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Event         *CloudEvent            `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PublishRequest) Reset() {
 	*x = PublishRequest{}
-	mi := &file_proto_coordinator_proto_msgTypes[0]
+	mi := &file_coordinator_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -143,7 +141,7 @@ func (x *PublishRequest) String() string {
 func (*PublishRequest) ProtoMessage() {}
 
 func (x *PublishRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[0]
+	mi := &file_coordinator_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -156,7 +154,7 @@ func (x *PublishRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishRequest.ProtoReflect.Descriptor instead.
 func (*PublishRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{0}
+	return file_coordinator_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PublishRequest) GetTopic() string {
@@ -166,23 +164,9 @@ func (x *PublishRequest) GetTopic() string {
 	return ""
 }
 
-func (x *PublishRequest) GetMessageId() string {
+func (x *PublishRequest) GetEvent() *CloudEvent {
 	if x != nil {
-		return x.MessageId
-	}
-	return ""
-}
-
-func (x *PublishRequest) GetPayload() []byte {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *PublishRequest) GetMetadata() map[string]string {
-	if x != nil {
-		return x.Metadata
+		return x.Event
 	}
 	return nil
 }
@@ -193,14 +177,13 @@ type PublishResponse struct {
 	MessageId     string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	Topic         string                 `protobuf:"bytes,3,opt,name=topic,proto3" json:"topic,omitempty"`
 	Timestamp     string                 `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PublishResponse) Reset() {
 	*x = PublishResponse{}
-	mi := &file_proto_coordinator_proto_msgTypes[1]
+	mi := &file_coordinator_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -212,7 +195,7 @@ func (x *PublishResponse) String() string {
 func (*PublishResponse) ProtoMessage() {}
 
 func (x *PublishResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[1]
+	mi := &file_coordinator_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -225,7 +208,7 @@ func (x *PublishResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishResponse.ProtoReflect.Descriptor instead.
 func (*PublishResponse) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{1}
+	return file_coordinator_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PublishResponse) GetStatus() PublishResponse_Status {
@@ -256,13 +239,6 @@ func (x *PublishResponse) GetTimestamp() string {
 	return ""
 }
 
-func (x *PublishResponse) GetMetadata() map[string]string {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
 type SubscribeClientMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Action:
@@ -277,7 +253,7 @@ type SubscribeClientMessage struct {
 
 func (x *SubscribeClientMessage) Reset() {
 	*x = SubscribeClientMessage{}
-	mi := &file_proto_coordinator_proto_msgTypes[2]
+	mi := &file_coordinator_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -289,7 +265,7 @@ func (x *SubscribeClientMessage) String() string {
 func (*SubscribeClientMessage) ProtoMessage() {}
 
 func (x *SubscribeClientMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[2]
+	mi := &file_coordinator_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -302,7 +278,7 @@ func (x *SubscribeClientMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeClientMessage.ProtoReflect.Descriptor instead.
 func (*SubscribeClientMessage) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{2}
+	return file_coordinator_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SubscribeClientMessage) GetAction() isSubscribeClientMessage_Action {
@@ -371,7 +347,7 @@ type SubscribeRequest struct {
 
 func (x *SubscribeRequest) Reset() {
 	*x = SubscribeRequest{}
-	mi := &file_proto_coordinator_proto_msgTypes[3]
+	mi := &file_coordinator_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -383,7 +359,7 @@ func (x *SubscribeRequest) String() string {
 func (*SubscribeRequest) ProtoMessage() {}
 
 func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[3]
+	mi := &file_coordinator_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -396,7 +372,7 @@ func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{3}
+	return file_coordinator_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SubscribeRequest) GetTopic() string {
@@ -422,7 +398,7 @@ type AckRequest struct {
 
 func (x *AckRequest) Reset() {
 	*x = AckRequest{}
-	mi := &file_proto_coordinator_proto_msgTypes[4]
+	mi := &file_coordinator_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +410,7 @@ func (x *AckRequest) String() string {
 func (*AckRequest) ProtoMessage() {}
 
 func (x *AckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[4]
+	mi := &file_coordinator_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +423,7 @@ func (x *AckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckRequest.ProtoReflect.Descriptor instead.
 func (*AckRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{4}
+	return file_coordinator_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AckRequest) GetMessageId() string {
@@ -467,7 +443,7 @@ type NackRequest struct {
 
 func (x *NackRequest) Reset() {
 	*x = NackRequest{}
-	mi := &file_proto_coordinator_proto_msgTypes[5]
+	mi := &file_coordinator_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -479,7 +455,7 @@ func (x *NackRequest) String() string {
 func (*NackRequest) ProtoMessage() {}
 
 func (x *NackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[5]
+	mi := &file_coordinator_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,7 +468,7 @@ func (x *NackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NackRequest.ProtoReflect.Descriptor instead.
 func (*NackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{5}
+	return file_coordinator_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *NackRequest) GetMessageId() string {
@@ -511,17 +487,15 @@ func (x *NackRequest) GetReason() string {
 
 type EventMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	Topic         string                 `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
-	Payload       []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Topic         string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
+	Event         *CloudEvent            `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EventMessage) Reset() {
 	*x = EventMessage{}
-	mi := &file_proto_coordinator_proto_msgTypes[6]
+	mi := &file_coordinator_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -533,7 +507,7 @@ func (x *EventMessage) String() string {
 func (*EventMessage) ProtoMessage() {}
 
 func (x *EventMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[6]
+	mi := &file_coordinator_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,14 +520,7 @@ func (x *EventMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventMessage.ProtoReflect.Descriptor instead.
 func (*EventMessage) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *EventMessage) GetMessageId() string {
-	if x != nil {
-		return x.MessageId
-	}
-	return ""
+	return file_coordinator_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EventMessage) GetTopic() string {
@@ -563,16 +530,9 @@ func (x *EventMessage) GetTopic() string {
 	return ""
 }
 
-func (x *EventMessage) GetPayload() []byte {
+func (x *EventMessage) GetEvent() *CloudEvent {
 	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *EventMessage) GetMetadata() map[string]string {
-	if x != nil {
-		return x.Metadata
+		return x.Event
 	}
 	return nil
 }
@@ -585,7 +545,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_proto_coordinator_proto_msgTypes[7]
+	mi := &file_coordinator_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +557,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[7]
+	mi := &file_coordinator_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +570,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{7}
+	return file_coordinator_proto_rawDescGZIP(), []int{7}
 }
 
 type HealthCheckResponse struct {
@@ -622,7 +582,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_proto_coordinator_proto_msgTypes[8]
+	mi := &file_coordinator_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -634,7 +594,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coordinator_proto_msgTypes[8]
+	mi := &file_coordinator_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -647,7 +607,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_coordinator_proto_rawDescGZIP(), []int{8}
+	return file_coordinator_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *HealthCheckResponse) GetStatus() HealthCheckResponse_ServingStatus {
@@ -657,30 +617,20 @@ func (x *HealthCheckResponse) GetStatus() HealthCheckResponse_ServingStatus {
 	return HealthCheckResponse_UNKNOWN
 }
 
-var File_proto_coordinator_proto protoreflect.FileDescriptor
+var File_coordinator_proto protoreflect.FileDescriptor
 
-const file_proto_coordinator_proto_rawDesc = "" +
+const file_coordinator_proto_rawDesc = "" +
 	"\n" +
-	"\x17proto/coordinator.proto\x12\vcoordinator\"\xe3\x01\n" +
+	"\x11coordinator.proto\x12\vcoordinator\x1a\x11cloudevents.proto\"[\n" +
 	"\x0ePublishRequest\x12\x14\n" +
-	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1d\n" +
-	"\n" +
-	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x18\n" +
-	"\apayload\x18\x03 \x01(\fR\apayload\x12E\n" +
-	"\bmetadata\x18\x04 \x03(\v2).coordinator.PublishRequest.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xeb\x02\n" +
+	"\x05topic\x18\x01 \x01(\tR\x05topic\x123\n" +
+	"\x05event\x18\x02 \x01(\v2\x1d.io.cloudevents.v1.CloudEventR\x05event\"\xe6\x01\n" +
 	"\x0fPublishResponse\x12;\n" +
 	"\x06status\x18\x01 \x01(\x0e2#.coordinator.PublishResponse.StatusR\x06status\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x14\n" +
 	"\x05topic\x18\x03 \x01(\tR\x05topic\x12\x1c\n" +
-	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\x12F\n" +
-	"\bmetadata\x18\x05 \x03(\v2*.coordinator.PublishResponse.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"C\n" +
+	"\ttimestamp\x18\x04 \x01(\tR\ttimestamp\"C\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tPUBLISHED\x10\x01\x12\x12\n" +
@@ -700,16 +650,10 @@ const file_proto_coordinator_proto_rawDesc = "" +
 	"\vNackRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xdf\x01\n" +
-	"\fEventMessage\x12\x1d\n" +
-	"\n" +
-	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x14\n" +
-	"\x05topic\x18\x02 \x01(\tR\x05topic\x12\x18\n" +
-	"\apayload\x18\x03 \x01(\fR\apayload\x12C\n" +
-	"\bmetadata\x18\x04 \x03(\v2'.coordinator.EventMessage.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x14\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"Y\n" +
+	"\fEventMessage\x12\x14\n" +
+	"\x05topic\x18\x01 \x01(\tR\x05topic\x123\n" +
+	"\x05event\x18\x02 \x01(\v2\x1d.io.cloudevents.v1.CloudEventR\x05event\"\x14\n" +
 	"\x12HealthCheckRequest\"\x99\x01\n" +
 	"\x13HealthCheckResponse\x12F\n" +
 	"\x06status\x18\x01 \x01(\x0e2..coordinator.HealthCheckResponse.ServingStatusR\x06status\":\n" +
@@ -720,24 +664,24 @@ const file_proto_coordinator_proto_rawDesc = "" +
 	"\x12CoordinatorService\x12D\n" +
 	"\aPublish\x12\x1b.coordinator.PublishRequest\x1a\x1c.coordinator.PublishResponse\x12O\n" +
 	"\tSubscribe\x12#.coordinator.SubscribeClientMessage\x1a\x19.coordinator.EventMessage(\x010\x01\x12P\n" +
-	"\vCheckHealth\x12\x1f.coordinator.HealthCheckRequest\x1a .coordinator.HealthCheckResponseB|\n" +
-	"(com.hypergov.watermill.coordinator.protoB\x10CoordinatorProtoP\x01Z<github.com/magnusp/watermill-coordinator/proto;coordinatorpbb\x06proto3"
+	"\vCheckHealth\x12\x1f.coordinator.HealthCheckRequest\x1a .coordinator.HealthCheckResponseBr\n" +
+	"\x1eio.watermill.coordinator.protoB\x10CoordinatorProtoP\x01Z<github.com/magnusp/watermill-coordinator/proto;coordinatorpbb\x06proto3"
 
 var (
-	file_proto_coordinator_proto_rawDescOnce sync.Once
-	file_proto_coordinator_proto_rawDescData []byte
+	file_coordinator_proto_rawDescOnce sync.Once
+	file_coordinator_proto_rawDescData []byte
 )
 
-func file_proto_coordinator_proto_rawDescGZIP() []byte {
-	file_proto_coordinator_proto_rawDescOnce.Do(func() {
-		file_proto_coordinator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_coordinator_proto_rawDesc), len(file_proto_coordinator_proto_rawDesc)))
+func file_coordinator_proto_rawDescGZIP() []byte {
+	file_coordinator_proto_rawDescOnce.Do(func() {
+		file_coordinator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_coordinator_proto_rawDesc), len(file_coordinator_proto_rawDesc)))
 	})
-	return file_proto_coordinator_proto_rawDescData
+	return file_coordinator_proto_rawDescData
 }
 
-var file_proto_coordinator_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_proto_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_proto_coordinator_proto_goTypes = []any{
+var file_coordinator_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_coordinator_proto_goTypes = []any{
 	(PublishResponse_Status)(0),            // 0: coordinator.PublishResponse.Status
 	(HealthCheckResponse_ServingStatus)(0), // 1: coordinator.HealthCheckResponse.ServingStatus
 	(*PublishRequest)(nil),                 // 2: coordinator.PublishRequest
@@ -749,38 +693,36 @@ var file_proto_coordinator_proto_goTypes = []any{
 	(*EventMessage)(nil),                   // 8: coordinator.EventMessage
 	(*HealthCheckRequest)(nil),             // 9: coordinator.HealthCheckRequest
 	(*HealthCheckResponse)(nil),            // 10: coordinator.HealthCheckResponse
-	nil,                                    // 11: coordinator.PublishRequest.MetadataEntry
-	nil,                                    // 12: coordinator.PublishResponse.MetadataEntry
-	nil,                                    // 13: coordinator.EventMessage.MetadataEntry
+	(*CloudEvent)(nil),                     // 11: io.cloudevents.v1.CloudEvent
 }
-var file_proto_coordinator_proto_depIdxs = []int32{
-	11, // 0: coordinator.PublishRequest.metadata:type_name -> coordinator.PublishRequest.MetadataEntry
+var file_coordinator_proto_depIdxs = []int32{
+	11, // 0: coordinator.PublishRequest.event:type_name -> io.cloudevents.v1.CloudEvent
 	0,  // 1: coordinator.PublishResponse.status:type_name -> coordinator.PublishResponse.Status
-	12, // 2: coordinator.PublishResponse.metadata:type_name -> coordinator.PublishResponse.MetadataEntry
-	5,  // 3: coordinator.SubscribeClientMessage.start:type_name -> coordinator.SubscribeRequest
-	6,  // 4: coordinator.SubscribeClientMessage.ack:type_name -> coordinator.AckRequest
-	7,  // 5: coordinator.SubscribeClientMessage.nack:type_name -> coordinator.NackRequest
-	13, // 6: coordinator.EventMessage.metadata:type_name -> coordinator.EventMessage.MetadataEntry
-	1,  // 7: coordinator.HealthCheckResponse.status:type_name -> coordinator.HealthCheckResponse.ServingStatus
-	2,  // 8: coordinator.CoordinatorService.Publish:input_type -> coordinator.PublishRequest
-	4,  // 9: coordinator.CoordinatorService.Subscribe:input_type -> coordinator.SubscribeClientMessage
-	9,  // 10: coordinator.CoordinatorService.CheckHealth:input_type -> coordinator.HealthCheckRequest
-	3,  // 11: coordinator.CoordinatorService.Publish:output_type -> coordinator.PublishResponse
-	8,  // 12: coordinator.CoordinatorService.Subscribe:output_type -> coordinator.EventMessage
-	10, // 13: coordinator.CoordinatorService.CheckHealth:output_type -> coordinator.HealthCheckResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	5,  // 2: coordinator.SubscribeClientMessage.start:type_name -> coordinator.SubscribeRequest
+	6,  // 3: coordinator.SubscribeClientMessage.ack:type_name -> coordinator.AckRequest
+	7,  // 4: coordinator.SubscribeClientMessage.nack:type_name -> coordinator.NackRequest
+	11, // 5: coordinator.EventMessage.event:type_name -> io.cloudevents.v1.CloudEvent
+	1,  // 6: coordinator.HealthCheckResponse.status:type_name -> coordinator.HealthCheckResponse.ServingStatus
+	2,  // 7: coordinator.CoordinatorService.Publish:input_type -> coordinator.PublishRequest
+	4,  // 8: coordinator.CoordinatorService.Subscribe:input_type -> coordinator.SubscribeClientMessage
+	9,  // 9: coordinator.CoordinatorService.CheckHealth:input_type -> coordinator.HealthCheckRequest
+	3,  // 10: coordinator.CoordinatorService.Publish:output_type -> coordinator.PublishResponse
+	8,  // 11: coordinator.CoordinatorService.Subscribe:output_type -> coordinator.EventMessage
+	10, // 12: coordinator.CoordinatorService.CheckHealth:output_type -> coordinator.HealthCheckResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_proto_coordinator_proto_init() }
-func file_proto_coordinator_proto_init() {
-	if File_proto_coordinator_proto != nil {
+func init() { file_coordinator_proto_init() }
+func file_coordinator_proto_init() {
+	if File_coordinator_proto != nil {
 		return
 	}
-	file_proto_coordinator_proto_msgTypes[2].OneofWrappers = []any{
+	file_cloudevents_proto_init()
+	file_coordinator_proto_msgTypes[2].OneofWrappers = []any{
 		(*SubscribeClientMessage_Start)(nil),
 		(*SubscribeClientMessage_Ack)(nil),
 		(*SubscribeClientMessage_Nack)(nil),
@@ -789,18 +731,18 @@ func file_proto_coordinator_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_coordinator_proto_rawDesc), len(file_proto_coordinator_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_coordinator_proto_rawDesc), len(file_coordinator_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_coordinator_proto_goTypes,
-		DependencyIndexes: file_proto_coordinator_proto_depIdxs,
-		EnumInfos:         file_proto_coordinator_proto_enumTypes,
-		MessageInfos:      file_proto_coordinator_proto_msgTypes,
+		GoTypes:           file_coordinator_proto_goTypes,
+		DependencyIndexes: file_coordinator_proto_depIdxs,
+		EnumInfos:         file_coordinator_proto_enumTypes,
+		MessageInfos:      file_coordinator_proto_msgTypes,
 	}.Build()
-	File_proto_coordinator_proto = out.File
-	file_proto_coordinator_proto_goTypes = nil
-	file_proto_coordinator_proto_depIdxs = nil
+	File_coordinator_proto = out.File
+	file_coordinator_proto_goTypes = nil
+	file_coordinator_proto_depIdxs = nil
 }

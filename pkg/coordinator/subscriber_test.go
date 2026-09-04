@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ func TestSubscriberAgent_CloudEvents_StructuredAndBinary(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 1. Publish a Structured CloudEvent
+	// 1. Publish a CloudEvent
 	ceStructured := cloudevents.NewEvent()
 	ceStructured.SetID("ce-struct-101")
 	ceStructured.SetSource("urn:service:publisher")
@@ -31,36 +30,34 @@ func TestSubscriberAgent_CloudEvents_StructuredAndBinary(t *testing.T) {
 		"orderId": "order-101",
 		"status":  "CREATED",
 	})
-	ceBytes, err := json.Marshal(ceStructured)
+	pbCE1, err := SDKToProtoCloudEvent(ceStructured)
 	if err != nil {
-		t.Fatalf("marshal structured CE: %v", err)
+		t.Fatalf("SDKToProtoCloudEvent 1: %v", err)
 	}
 
 	_, err = client.Publish(ctx, &pb.PublishRequest{
-		Topic:     "events_ce",
-		MessageId: ceStructured.ID(),
-		Payload:   ceBytes,
-		Metadata: map[string]string{
-			"content-type": "application/cloudevents+json",
-		},
+		Topic: "events_ce",
+		Event: pbCE1,
 	})
 	if err != nil {
 		t.Fatalf("publish structured CE: %v", err)
 	}
 
-	// 2. Publish a Binary CloudEvent
-	rawPayload := []byte(`{"orderId":"order-102","status":"CONFIRMED"}`)
+	// 2. Publish a second CloudEvent
+	ce2 := cloudevents.NewEvent()
+	ce2.SetID("ce-bin-202")
+	ce2.SetSource("urn:service:order-processor")
+	ce2.SetType("io.service.order.confirmed.v1")
+	ce2.SetSubject("orders/order-102")
+	_ = ce2.SetData(cloudevents.ApplicationJSON, []byte(`{"orderId":"order-102","status":"CONFIRMED"}`))
+	pbCE2, err := SDKToProtoCloudEvent(ce2)
+	if err != nil {
+		t.Fatalf("SDKToProtoCloudEvent 2: %v", err)
+	}
+
 	_, err = client.Publish(ctx, &pb.PublishRequest{
-		Topic:     "events_ce",
-		MessageId: "ce-bin-202",
-		Payload:   rawPayload,
-		Metadata: map[string]string{
-			"ce-id":              "ce-bin-202",
-			"ce-source":          "urn:service:order-processor",
-			"ce-type":            "io.service.order.confirmed.v1",
-			"ce-subject":         "orders/order-102",
-			"ce-datacontenttype": "application/json",
-		},
+		Topic: "events_ce",
+		Event: pbCE2,
 	})
 	if err != nil {
 		t.Fatalf("publish binary CE: %v", err)
@@ -133,5 +130,32 @@ func TestSubscriberAgent_CloudEvents_StructuredAndBinary(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for event 2")
+	}
+}
+
+func TestProtoToSDKCloudEvent_TimestampHandling(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	// 1. Proto with string timestamp
+	pbStr := &pb.CloudEvent{
+		Id:          "ts-str-1",
+		Source:      "urn:test:source",
+		SpecVersion: "1.0",
+		Type:        "test.time",
+		Attributes: map[string]*pb.CloudEventAttributeValue{
+			"time": {
+				Attr: &pb.CloudEventAttributeValue_CeString{
+					CeString: now.Format(time.RFC3339Nano),
+				},
+			},
+		},
+	}
+
+	eventStr, err := ProtoToSDKCloudEvent(pbStr)
+	if err != nil {
+		t.Fatalf("ProtoToSDKCloudEvent string time failed: %v", err)
+	}
+	if !eventStr.Time().Equal(now) {
+		t.Errorf("expected parsed time %v, got %v", now, eventStr.Time())
 	}
 }

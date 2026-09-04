@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.36.1
-// source: proto/coordinator.proto
+// source: coordinator.proto
 
 package coordinatorpb
 
@@ -28,7 +28,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CoordinatorServiceClient interface {
-	// Publish publishes an event to a topic idempotently based on message_id
+	// Publish publishes an event to a topic idempotently based on event ID / message_id
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
 	// Subscribe bi-directionally streams events and client acknowledgments
 	// Client first sends a SubscribeRequest (start subscription), and then sends AckRequest messages
@@ -83,7 +83,7 @@ func (c *coordinatorServiceClient) CheckHealth(ctx context.Context, in *HealthCh
 // All implementations must embed UnimplementedCoordinatorServiceServer
 // for forward compatibility.
 type CoordinatorServiceServer interface {
-	// Publish publishes an event to a topic idempotently based on message_id
+	// Publish publishes an event to a topic idempotently based on event ID / message_id
 	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
 	// Subscribe bi-directionally streams events and client acknowledgments
 	// Client first sends a SubscribeRequest (start subscription), and then sends AckRequest messages
@@ -198,5 +198,5 @@ var CoordinatorService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/coordinator.proto",
+	Metadata: "coordinator.proto",
 }

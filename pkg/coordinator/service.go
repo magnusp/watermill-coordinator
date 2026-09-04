@@ -20,11 +20,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var validTopicRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+var validTopicRegex = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,64}$`)
 
 func validateTopic(topic string) error {
 	if !validTopicRegex.MatchString(topic) {
-		return fmt.Errorf("invalid topic name %q: must match regex ^[a-zA-Z0-9_-]{1,64}$", topic)
+		return fmt.Errorf("invalid topic name %q: must match regex ^[a-zA-Z0-9_.-]{1,64}$", topic)
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (s *Service) ensureTopicSchema(topic string) error {
 	return nil
 }
 
-// Publish publishes an event idempotently based on message_id.
+// Publish publishes an event idempotently based on event ID.
 func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.PublishResponse, error) {
 	topic := strings.TrimSpace(req.Topic)
 	if topic == "" {
@@ -160,13 +160,14 @@ func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.Publ
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	if len(req.Payload) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "payload cannot be empty")
+	if req.Event == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "event cannot be nil")
 	}
 
-	msgID := strings.TrimSpace(req.MessageId)
+	msgID := strings.TrimSpace(req.Event.Id)
 	if msgID == "" {
 		msgID = watermill.NewUUID()
+		req.Event.Id = msgID
 	}
 
 	if err := s.ensureTopicSchema(topic); err != nil {
@@ -174,9 +175,9 @@ func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.Publ
 		return nil, status.Errorf(codes.Internal, "failed to initialize topic schema: %v", err)
 	}
 
-	msg := message.NewMessage(msgID, req.Payload)
-	for k, v := range req.Metadata {
-		msg.Metadata.Set(k, v)
+	msg, err := CloudEventToWatermillMessage(req.Event)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid cloudevent: %v", err)
 	}
 
 	now := time.Now().UTC()
@@ -184,7 +185,7 @@ func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.Publ
 	msg.Metadata.Set("ingress_published_at", timestampStr)
 	msg.Metadata.Set("ingress_topic", topic)
 
-	err := s.publisher.Publish(topic, msg)
+	err = s.publisher.Publish(topic, msg)
 	if err != nil {
 		errLower := strings.ToLower(err.Error())
 		if strings.Contains(errLower, "unique") || strings.Contains(errLower, "constraint failed") {
@@ -194,7 +195,6 @@ func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.Publ
 				MessageId: msgID,
 				Topic:     topic,
 				Timestamp: timestampStr,
-				Metadata:  map[string]string(msg.Metadata),
 			}, nil
 		}
 
@@ -202,14 +202,13 @@ func (s *Service) Publish(ctx context.Context, req *pb.PublishRequest) (*pb.Publ
 		return nil, status.Errorf(codes.Internal, "failed to publish message: %v", err)
 	}
 
-	log.Printf("[GRPC] Successfully published message %s to topic %s (bytes=%d)", msgID, topic, len(req.Payload))
+	log.Printf("[GRPC] Successfully published event %s to topic %s (bytes=%d)", msgID, topic, len(msg.Payload))
 
 	return &pb.PublishResponse{
 		Status:    pb.PublishResponse_PUBLISHED,
 		MessageId: msgID,
 		Topic:     topic,
 		Timestamp: timestampStr,
-		Metadata:  map[string]string(msg.Metadata),
 	}, nil
 }
 
@@ -341,11 +340,16 @@ func (s *Service) Subscribe(stream pb.CoordinatorService_SubscribeServer) error 
 				return nil
 			}
 
+			pbEvent, err := WatermillMessageToCloudEvent(msg)
+			if err != nil {
+				msg.Nack()
+				log.Printf("[GRPC] Error converting message %s to CloudEvent: %v", msg.UUID, err)
+				return err
+			}
+
 			eventMsg := &pb.EventMessage{
-				MessageId: msg.UUID,
-				Topic:     topic,
-				Payload:   msg.Payload,
-				Metadata:  map[string]string(msg.Metadata),
+				Topic: topic,
+				Event: pbEvent,
 			}
 
 			if err := stream.Send(eventMsg); err != nil {

@@ -100,11 +100,13 @@ func TestGRPC_Publish_Success_And_Dedup(t *testing.T) {
 	defer cancel()
 
 	req := &pb.PublishRequest{
-		Topic:     "orders_topic",
-		MessageId: "order-msg-101",
-		Payload:   []byte(`{"order_id": 101, "total": 49.99}`),
-		Metadata: map[string]string{
-			"X-Source": "spring-modulith",
+		Topic: "orders_topic",
+		Event: &pb.CloudEvent{
+			Id:          "order-msg-101",
+			Source:      "urn:spring-modulith",
+			Type:        "order.created",
+			SpecVersion: "1.0",
+			Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte(`{"order_id": 101, "total": 49.99}`)},
 		},
 	}
 
@@ -158,14 +160,13 @@ func TestGRPC_Publish_ValidationErrors(t *testing.T) {
 	defer cancel()
 
 	req := &pb.PublishRequest{
-		Topic:     "test_topic",
-		MessageId: "msg-123",
-		Payload:   nil,
+		Topic: "test_topic",
+		Event: nil,
 	}
 
 	_, err := client.Publish(ctx, req)
 	if err == nil {
-		t.Fatal("expected error on empty payload, got nil")
+		t.Fatal("expected error on nil event, got nil")
 	}
 
 	st, ok := status.FromError(err)
@@ -193,9 +194,14 @@ func TestGRPC_Publish_TopicValidation(t *testing.T) {
 
 	for _, bad := range badTopics {
 		req := &pb.PublishRequest{
-			Topic:     bad,
-			MessageId: "msg-test",
-			Payload:   []byte("test"),
+			Topic: bad,
+			Event: &pb.CloudEvent{
+				Id:          "msg-test",
+				Source:      "urn:test",
+				Type:        "test.event",
+				SpecVersion: "1.0",
+				Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte("test")},
+			},
 		}
 		_, err := client.Publish(ctx, req)
 		if err == nil {
@@ -216,18 +222,28 @@ func TestGRPC_Subscribe_BiDirectional(t *testing.T) {
 	defer cancel()
 
 	pubReq1 := &pb.PublishRequest{
-		Topic:     "stream_topic",
-		MessageId: "stream-msg-1",
-		Payload:   []byte(`first`),
+		Topic: "stream_topic",
+		Event: &pb.CloudEvent{
+			Id:          "stream-msg-1",
+			Source:      "urn:test",
+			Type:        "stream.event",
+			SpecVersion: "1.0",
+			Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte(`first`)},
+		},
 	}
 	if _, err := client.Publish(ctx, pubReq1); err != nil {
 		t.Fatalf("publish 1 failed: %v", err)
 	}
 
 	pubReq2 := &pb.PublishRequest{
-		Topic:     "stream_topic",
-		MessageId: "stream-msg-2",
-		Payload:   []byte(`second`),
+		Topic: "stream_topic",
+		Event: &pb.CloudEvent{
+			Id:          "stream-msg-2",
+			Source:      "urn:test",
+			Type:        "stream.event",
+			SpecVersion: "1.0",
+			Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte(`second`)},
+		},
 	}
 	if _, err := client.Publish(ctx, pubReq2); err != nil {
 		t.Fatalf("publish 2 failed: %v", err)
@@ -258,12 +274,15 @@ func TestGRPC_Subscribe_BiDirectional(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stream recv error: %v", err)
 		}
-		receivedIDs = append(receivedIDs, msg.MessageId)
+		if msg.Event == nil {
+			continue
+		}
+		receivedIDs = append(receivedIDs, msg.Event.Id)
 
 		if err := stream.Send(&pb.SubscribeClientMessage{
 			Action: &pb.SubscribeClientMessage_Ack{
 				Ack: &pb.AckRequest{
-					MessageId: msg.MessageId,
+					MessageId: msg.Event.Id,
 				},
 			},
 		}); err != nil {
@@ -421,9 +440,14 @@ func TestJepsen_DisconnectWithoutAck(t *testing.T) {
 	ctx := context.Background()
 
 	pubReq := &pb.PublishRequest{
-		Topic:     "resilient_topic",
-		MessageId: "msg-crash-test",
-		Payload:   []byte(`important-payload`),
+		Topic: "resilient_topic",
+		Event: &pb.CloudEvent{
+			Id:          "msg-crash-test",
+			Source:      "urn:test",
+			Type:        "crash.event",
+			SpecVersion: "1.0",
+			Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte(`important-payload`)},
+		},
 	}
 	if _, err := client.Publish(ctx, pubReq); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -448,8 +472,8 @@ func TestJepsen_DisconnectWithoutAck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stream1 recv error: %v", err)
 	}
-	if msg.MessageId != "msg-crash-test" {
-		t.Fatalf("expected msg-crash-test, got %s", msg.MessageId)
+	if msg.Event == nil || msg.Event.Id != "msg-crash-test" {
+		t.Fatalf("expected msg-crash-test, got %v", msg.Event)
 	}
 
 	stream1Cancel()
@@ -477,14 +501,14 @@ func TestJepsen_DisconnectWithoutAck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stream2 recv error (message was lost after crash!): %v", err)
 	}
-	if redeliveredMsg.MessageId != "msg-crash-test" {
-		t.Fatalf("expected redelivered message msg-crash-test, got %s", redeliveredMsg.MessageId)
+	if redeliveredMsg.Event == nil || redeliveredMsg.Event.Id != "msg-crash-test" {
+		t.Fatalf("expected redelivered message msg-crash-test, got %v", redeliveredMsg.Event)
 	}
 
 	_ = stream2.Send(&pb.SubscribeClientMessage{
 		Action: &pb.SubscribeClientMessage_Ack{
 			Ack: &pb.AckRequest{
-				MessageId: redeliveredMsg.MessageId,
+				MessageId: redeliveredMsg.Event.Id,
 			},
 		},
 	})
@@ -536,10 +560,16 @@ func TestBoundedFlowControl(t *testing.T) {
 
 	// 1. Publish 4 messages to the topic
 	for i := 1; i <= 4; i++ {
+		msgID := "flow-msg-" + string(rune('0'+i))
 		_, err := client.Publish(ctx, &pb.PublishRequest{
-			Topic:     "flow_topic",
-			MessageId: "flow-msg-" + string(rune('0'+i)),
-			Payload:   []byte("test"),
+			Topic: "flow_topic",
+			Event: &pb.CloudEvent{
+				Id:          msgID,
+				Source:      "urn:test",
+				Type:        "flow.event",
+				SpecVersion: "1.0",
+				Data:        &pb.CloudEvent_BinaryData{BinaryData: []byte("test")},
+			},
 		})
 		if err != nil {
 			t.Fatalf("publish %d err: %v", i, err)
@@ -566,8 +596,8 @@ func TestBoundedFlowControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recv 1: %v", err)
 	}
-	if m1.MessageId != "flow-msg-1" {
-		t.Errorf("expected flow-msg-1, got %s", m1.MessageId)
+	if m1.Event == nil || m1.Event.Id != "flow-msg-1" {
+		t.Errorf("expected flow-msg-1, got %v", m1.Event)
 	}
 
 	// 4. In Watermill SQLite, unacked message prevents next offset until acked (inherent strict order)
@@ -582,7 +612,7 @@ func TestBoundedFlowControl(t *testing.T) {
 
 	select {
 	case m2 := <-read2Ch:
-		t.Fatalf("unexpectedly received 2nd message %s before acking 1st", m2.MessageId)
+		t.Fatalf("unexpectedly received 2nd message %v before acking 1st", m2.Event)
 	case <-time.After(200 * time.Millisecond):
 		// Expected: blocked until ack
 	}
@@ -591,7 +621,7 @@ func TestBoundedFlowControl(t *testing.T) {
 	_ = stream.Send(&pb.SubscribeClientMessage{
 		Action: &pb.SubscribeClientMessage_Ack{
 			Ack: &pb.AckRequest{
-				MessageId: m1.MessageId,
+				MessageId: m1.Event.Id,
 			},
 		},
 	})
@@ -599,13 +629,13 @@ func TestBoundedFlowControl(t *testing.T) {
 	// 6. Now 2nd message unblocks and arrives
 	select {
 	case m2 := <-read2Ch:
-		if m2.MessageId != "flow-msg-2" {
-			t.Errorf("expected flow-msg-2, got %s", m2.MessageId)
+		if m2.Event == nil || m2.Event.Id != "flow-msg-2" {
+			t.Errorf("expected flow-msg-2, got %v", m2.Event)
 		}
 		// Ack message 2
 		_ = stream.Send(&pb.SubscribeClientMessage{
 			Action: &pb.SubscribeClientMessage_Ack{
-				Ack: &pb.AckRequest{MessageId: m2.MessageId},
+				Ack: &pb.AckRequest{MessageId: m2.Event.Id},
 			},
 		})
 	case <-time.After(1 * time.Second):
@@ -617,12 +647,12 @@ func TestBoundedFlowControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recv 3: %v", err)
 	}
-	if m3.MessageId != "flow-msg-3" {
-		t.Errorf("expected flow-msg-3, got %s", m3.MessageId)
+	if m3.Event == nil || m3.Event.Id != "flow-msg-3" {
+		t.Errorf("expected flow-msg-3, got %v", m3.Event)
 	}
 	_ = stream.Send(&pb.SubscribeClientMessage{
 		Action: &pb.SubscribeClientMessage_Ack{
-			Ack: &pb.AckRequest{MessageId: m3.MessageId},
+			Ack: &pb.AckRequest{MessageId: m3.Event.Id},
 		},
 	})
 }

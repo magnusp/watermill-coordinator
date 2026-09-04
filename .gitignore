@@ -1,6 +1,7 @@
 # Binaries and build artifacts
 /bin/
 /dist/
+/linux/
 /coordinator
 *.exe
 *.exe~
@@ -38,3 +39,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+.idea
+*.iml
